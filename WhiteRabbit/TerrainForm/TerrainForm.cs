@@ -422,7 +422,7 @@ namespace WhiteRabbit.TerrainForm
             var CrateTex = new Texture
             {
                 Name = "CrateTex",
-                Filename = @"C:\Users\yulanli\Desktop\TerrainForm\colorMap.dds"
+                Filename = @"C:\Users\yulanli\Desktop\WhiteRabbit-master\WhiteRabbit\TerrainForm\Textures\colorMap.dds"
             };
             CrateTex.Resource = TextureUtilities.CreateTextureFromDDS(Device, CrateTex.Filename);
             textures[CrateTex.Name] = CrateTex;
@@ -502,7 +502,7 @@ namespace WhiteRabbit.TerrainForm
 
         private void BuildShapeGeometry()
         {
-            string bitmapPath = @"C:\Users\yulanli\Desktop\TerrainForm\heightMap.BMP";
+            string bitmapPath = @"C:\Users\yulanli\Desktop\WhiteRabbit-master\WhiteRabbit\TerrainForm\Textures\heightMap.BMP";
             System.Drawing.Bitmap bitmap = new System.Drawing.Bitmap(bitmapPath);
             xCount = (bitmap.Width - 1) / 2;
             yCount = (bitmap.Height - 1) / 2;

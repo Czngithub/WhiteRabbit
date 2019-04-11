@@ -78,6 +78,12 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="TempForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="TempForm.Designer.cs">
+      <DependentUpon>TempForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Framework\TextureUtilities.cs" />
     <Compile Include="Framework\UploadBuffer.cs" />
     <Compile Include="Shapes\FrameResource.cs" />
