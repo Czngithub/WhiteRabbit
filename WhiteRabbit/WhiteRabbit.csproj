@@ -78,6 +78,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Framework\XHelper.cs" />
+    <Compile Include="Framework\XUtilities.cs" />
     <Compile Include="TempForm.cs">
       <SubType>Form</SubType>
     </Compile>
