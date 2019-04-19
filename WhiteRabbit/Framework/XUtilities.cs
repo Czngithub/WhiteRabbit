@@ -8,10 +8,10 @@ using System.Text;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
-using static WhiteRabbit.Framework.Mesh;
 using VectorKey = System.Collections.Generic.KeyValuePair<double, SharpDX.Vector3>;
 using QuatKey = System.Collections.Generic.KeyValuePair<double, SharpDX.Quaternion>;
 using MatrixKey = System.Collections.Generic.KeyValuePair<double, SharpDX.Matrix>;
+using static WhiteRabbit.Framework.Mesh;
 
 /// <summary>
 /// X文件的自定义加载程序
@@ -223,7 +223,7 @@ namespace WhiteRabbit.Framework
                 else if (objectName == "Material")
                 {
                     //网格或节点外部的材料
-                    Material material;
+                    MatEntry material;
                     ParseDataObjectMaterial(out material);
                     scene.GlobalMaterial.Add(material);
                 }
@@ -451,7 +451,7 @@ namespace WhiteRabbit.Framework
             }
 
             // read matrix offset
-            bone.OffsetMatrix = new Matrix4x4();
+            bone.OffsetMatrix = new Matrix();
             bone.OffsetMatrix.M11 = ReadFloat(); bone.OffsetMatrix.M21 = ReadFloat();
             bone.OffsetMatrix.M31 = ReadFloat(); bone.OffsetMatrix.M41 = ReadFloat();
             bone.OffsetMatrix.M12 = ReadFloat(); bone.OffsetMatrix.M22 = ReadFloat();
@@ -530,7 +530,7 @@ namespace WhiteRabbit.Framework
             CheckForClosingBrace();
         }
 
-        protected void ParseDataObjectMeshVertexColor(ref Mesh mesh)
+        protected void ParseDataObjectMeshVertexColors(ref Mesh mesh)
         {
             ReadHeadOfDataObject();
 
@@ -579,6 +579,831 @@ namespace WhiteRabbit.Framework
             //有些模型的材质数为1，为了能够读入它们，在每个 face 上复制这个单一的材料
             if (numMatIndices != mesh.PosFaces.Count && numMatIndices != 1)
                 ThrowException("Per-Face material index count does not match face count.");
+
+            //从这里开始
+            //读取每一个面的材料索引
+            for (uint a = 0; a < numMatIndices; a++)
+                mesh.FaceMaterials.Add(ReadInt());
+
+            //在03.02版本中，face索引以两个分号结束。
+            //注释掉版本检查，因为从blender导出的03.03版本也有2个分号
+            if (!isBinaryFormat) // && MajorVersion == 3 && MinorVersion <= 2)
+            {
+                if (p < end && buffer[p] == ';')
+                    ++p;
+            }
+
+            //如果只有一个材料索引，就把它复制到所有的面上
+            while (mesh.FaceMaterials.Count < mesh.PosFaces.Count)
+                mesh.FaceMaterials.Add(mesh.FaceMaterials[0]);
+
+            //读取下列数据对象
+            bool running = true;
+            while (running)
+            {
+                string objectName = GetNextToken();
+                if (objectName.Length == 0)
+                    ThrowException("Unexpected end of file while parsing mesh material list.");
+                else if (objectName == "}")
+                    break; // material list finished
+                else if (objectName == "{")
+                {
+                    // template materials 
+                    string matName = GetNextToken();
+                    MatEntry material = new MatEntry();
+                    material.IsReference = true;
+                    material.Name = matName;
+                    mesh.Materials.Add(material);
+
+                    CheckForClosingBrace(); // skip }
+                }
+                else if (objectName == "Material")
+                {
+                    MatEntry material;
+                    ParseDataObjectMaterial(out material);
+                    mesh.Materials.Add(material);
+                }
+                else if (objectName == ";")
+                {
+                    // ignore
+                }
+                else
+                {
+                    Debug.WriteLine("Unknown data object in material list in x file");
+                    ParseUnknownDataObject();
+                }
+            }
+        }
+
+        protected void ParseDataObjectMaterial(out MatEntry material)
+        {
+            string matName;
+            ReadHeadOfDataObject(out matName);
+            if (matName.Length == 0)
+            {
+                matName = "material" + lineNumber;
+            }
+            material = new MatEntry();
+            material.Name = matName;
+            material.IsReference = false;
+
+            //读取材料值
+            material.Diffuse = ReadRGBA();
+            material.SpecularExponent = ReadFloat();
+            material.Specular = ReadRGB();
+            material.Emissive = ReadRGB();
+
+            //读取其他数据对象
+            bool running = true;
+            material.Textures = new List<TexEntry>();
+            while (running)
+            {
+                string objectName = GetNextToken();
+                if (objectName.Length == 0)
+                    ThrowException("Unexpected end of file while parsing mesh material");
+                else if (objectName == "}")
+                {
+                    break; // material finished
+                }
+                else if (objectName == "TextureFilename" || objectName == "TextureFileName")
+                {
+                    // some exporters write "TextureFileName" instead.
+                    string texname = string.Empty;
+                    ParseDataObjectTextureFilename(ref texname);
+                    material.Textures.Add(new TexEntry(texname));
+                }
+                else if (objectName == "NormalmapFilename" || objectName == "NormalmapFileName")
+                {
+                    //一个导出程序用一个单独的文件名标记出法线映射
+                    string texname = string.Empty;
+                    ParseDataObjectTextureFilename(ref texname);
+                    material.Textures.Add(new TexEntry(texname, true));
+                }
+                else
+                {
+                    Debug.WriteLine("Unknown data object in material in x file");
+                    ParseUnknownDataObject();
+                }
+            }
+        }
+
+        protected void ParseDataObjectAnimTicksPerSecond()
+        {
+            ReadHeadOfDataObject();
+            scene.AnimTicksPerSecond = ReadInt();
+            CheckForClosingBrace();
+        }
+
+
+        protected void ParseDataObjectAnimationSet()
+        {
+            string animName;
+            ReadHeadOfDataObject(out animName);
+
+            Animation anim = new Animation();
+            scene.Anims.Add(anim);
+            anim.Name = animName;
+
+            bool running = true;
+            while (running)
+            {
+                string objectName = GetNextToken();
+                if (objectName.Length == 0)
+                {
+                    ThrowException("Unexpected end of file while parsing animation set.");
+                }
+                else if (objectName == "}")
+                {
+                    break; // animation set finished
+                }
+                else if (objectName == "Animation")
+                {
+                    ParseDataObjectAnimation(anim);
+                }
+                else
+                {
+                    Debug.WriteLine("Unknown data object in animation set in x file");
+                    ParseUnknownDataObject();
+                }
+            }
+        }
+
+        protected void ParseDataObjectAnimation(Animation pAnim)
+        {
+            ReadHeadOfDataObject();
+            AnimBone banim = new AnimBone();
+            pAnim.Anims.Add(banim);
+
+            bool running = true;
+            while (running)
+            {
+                string objectName = GetNextToken();
+                if (objectName.Length == 0)
+                {
+                    ThrowException("Unexpected end of file while parsing animation.");
+                }
+                else if (objectName == "}")
+                {
+                    break; // animation finished
+                }
+                else if (objectName == "AnimationKey")
+                {
+                    ParseDataObjectAnimationKey(banim);
+                }
+                else if (objectName == "AnimationOptions")
+                {
+                    ParseUnknownDataObject(); // not interested
+                }
+                else if (objectName == "{")
+                {
+                    // read frame name
+                    banim.BoneName = GetNextToken();
+                    CheckForClosingBrace();
+                }
+                else
+                {
+                    Debug.WriteLine("Unknown data object in animation in x file");
+                    ParseUnknownDataObject();
+                }
+            }
+        }
+
+        protected void ParseDataObjectAnimationKey(AnimBone animBone)
+        {
+            ReadHeadOfDataObject();
+
+            // read key type
+            uint keyType = ReadInt();
+
+            // read number of keys
+            uint numKeys = ReadInt();
+
+            for (uint a = 0; a < numKeys; a++)
+            {
+                // read time
+                uint time = ReadInt();
+
+                // read keys
+                switch (keyType)
+                {
+                    case 0:
+                        {
+                            if (ReadInt() != 4)
+                                ThrowException("Invalid number of arguments for quaternion key in animation");
+
+                            QuatKey key = new QuatKey((double)time, new SharpDX.Quaternion(ReadFloat(), ReadFloat(), ReadFloat(), ReadFloat()));
+                            animBone.RotKeys.Add(key);
+
+                            CheckForSemicolon();
+                            break;
+                        }
+                    case 1: // scale vector
+                    case 2: // position vector
+                        {
+                            // read count
+                            if (ReadInt() != 3)
+                            {
+                                ThrowException("Invalid number of arguments for vector key in animation");
+                            }
+                            VectorKey key = new VectorKey((double)time, ReadVector3());
+
+                            if (keyType == 2)
+                            {
+                                animBone.PosKeys.Add(key);
+                            }
+                            else
+                            {
+                                animBone.ScaleKeys.Add(key);
+                            }
+                            break;
+                        }
+                    case 3:
+                    case 4:
+                        {
+                            // read count
+                            if (ReadInt() != 16)
+                                ThrowException("Invalid number of arguments for matrix key in animation");
+
+                            // read matrix
+                            double key = (double)time;
+                            Matrix value = new Matrix();
+                            value.M11 = ReadFloat(); value.M21 = ReadFloat();
+                            value.M31 = ReadFloat(); value.M41 = ReadFloat();
+                            value.M12 = ReadFloat(); value.M22 = ReadFloat();
+                            value.M33 = ReadFloat(); value.M42 = ReadFloat();
+                            value.M13 = ReadFloat(); value.M23 = ReadFloat();
+                            value.M33 = ReadFloat(); value.M43 = ReadFloat();
+                            value.M14 = ReadFloat(); value.M24 = ReadFloat();
+                            value.M33 = ReadFloat(); value.M44 = ReadFloat();
+                            animBone.TrafoKeys.Add(new MatrixKey(key, value));
+                            CheckForSemicolon();
+                            break;
+                        }
+                    default:
+                        ThrowException(string.Format("Unknown key type {0} in animation.", keyType));
+                        break;
+                }
+                CheckForSeparator();
+            }
+            CheckForClosingBrace();
+        }
+
+        protected void ParseDataObjectTextureFilename(ref string name)
+        {
+            ReadHeadOfDataObject();
+            GetNextTokenAsString(out name);
+            CheckForClosingBrace();
+
+            // FIX: some files (e.g. AnimationTest.x) have "" as texture file name
+            if (name.Length == 0)
+            {
+                Debug.WriteLine("Length of texture file name is zero. Skipping this texture.");
+            }
+
+            // some exporters write double backslash paths out. We simply replace them if we find them
+            while (name.Contains("\\\\"))
+            {
+                name = name.Remove(name.IndexOf("\\\\"), 1);
+            }
+        }
+
+        protected void ParseUnknownDataObject()
+        {
+            // find opening delimiter
+            bool running = true;
+            while (running)
+            {
+                string t = GetNextToken();
+                if (t.Length == 0)
+                    ThrowException("Unexpected end of file while parsing unknown segment.");
+
+                if (t == "{")
+                    break;
+            }
+
+            uint counter = 1;
+
+            // parse until closing delimiter
+            while (counter > 0)
+            {
+                string t = GetNextToken();
+
+                if (t.Length == 0)
+                    ThrowException("Unexpected end of file while parsing unknown segment.");
+
+                if (t == "{")
+                    ++counter;
+                else if (t == "}")
+                    --counter;
+            }
+        }
+
+        // places pointer to next begin of a token, and ignores comments
+        protected void FindNextNoneWhiteSpace()
+        {
+            if (isBinaryFormat)
+                return;
+
+            bool running = true;
+            while (running)
+            {
+                while ((p < end) && (buffer[p] == ' ' || buffer[p] == '\r' || buffer[p] == '\n'))
+                {
+                    if (buffer[p] == '\n')
+                        lineNumber++;
+                    ++p;
+                }
+
+                if (p >= end)
+                    return;
+
+                // check if this is a comment
+                if ((buffer[p] == '/' && buffer[p + 1] == '/') || buffer[p] == '#')
+                    ReadUntilEndOfLine();
+                else
+                    break;
+            }
+        }
+
+        protected string GetNextToken()
+        {
+            string s = string.Empty;
+
+            //处理二进制格式的文件
+            if (isBinaryFormat)
+            {
+                // in binary mode it will only return NAME and STRING token
+                // and (correctly) skip over other tokens.
+
+                if (end - p < 2) return s;
+                uint tok = ReadBinWord();
+                uint len;
+
+                // standalone tokens
+                switch (tok)
+                {
+                    case 1:
+                        // name token
+                        if (end - p < 4) return s;
+                        len = ReadBinDWord();
+                        if (end - p < (int)len) return s;
+                        s = Encoding.Default.GetString(buffer, p, (int)len);
+                        p += (int)len;
+                        return s;
+                    case 2:
+                        // string token
+                        if (end - p < 4) return s;
+                        len = ReadBinDWord();
+                        if (end - p < (int)len) return s;
+                        s = Encoding.Default.GetString(buffer, p, (int)len);
+                        p += ((int)len + 2);
+                        return s;
+                    case 3:
+                        // integer token
+                        p += 4;
+                        return "<integer>";
+                    case 5:
+                        // GUID token
+                        p += 16;
+                        return "<guid>";
+                    case 6:
+                        if (end - p < 4) return s;
+                        len = ReadBinDWord();
+                        p += ((int)len * 4);
+                        return "<int_list>";
+                    case 7:
+                        if (end - p < 4) return s;
+                        len = ReadBinDWord();
+                        p += (int)(len * binaryFloatSize);
+                        return "<flt_list>";
+                    case 0x0a:
+                        return "{";
+                    case 0x0b:
+                        return "}";
+                    case 0x0c:
+                        return "(";
+                    case 0x0d:
+                        return ")";
+                    case 0x0e:
+                        return "[";
+                    case 0x0f:
+                        return "]";
+                    case 0x10:
+                        return "<";
+                    case 0x11:
+                        return ">";
+                    case 0x12:
+                        return ".";
+                    case 0x13:
+                        return ",";
+                    case 0x14:
+                        return ";";
+                    case 0x1f:
+                        return "template";
+                    case 0x28:
+                        return "WORD";
+                    case 0x29:
+                        return "DWORD";
+                    case 0x2a:
+                        return "FLOAT";
+                    case 0x2b:
+                        return "DOUBLE";
+                    case 0x2c:
+                        return "CHAR";
+                    case 0x2d:
+                        return "UCHAR";
+                    case 0x2e:
+                        return "SWORD";
+                    case 0x2f:
+                        return "SDWORD";
+                    case 0x30:
+                        return "void";
+                    case 0x31:
+                        return "string";
+                    case 0x32:
+                        return "unicode";
+                    case 0x33:
+                        return "cstring";
+                    case 0x34:
+                        return "array";
+                }
+            }
+            // process text-formatted file
+            else
+            {
+                FindNextNoneWhiteSpace();
+                if (p >= end)
+                    return s;
+
+                while ((p < end) && !char.IsSeparator((char)buffer[p]))
+                {
+                    // either keep token delimiters when already holding a token, or return if first valid char
+                    if (buffer[p] == ';' || buffer[p] == '}' || buffer[p] == '{' || buffer[p] == ',')
+                    {
+                        if (s.Length == 0)
+                            s += (char)buffer[p++];
+                        break; // stop for delimiter
+                    }
+                    s += (char)buffer[p++];
+                }
+            }
+            return s;
+        }
+
+        protected void ReadHeadOfDataObject(out string name)
+        {
+            name = string.Empty;
+            string nameOrBrace = GetNextToken();
+            if (nameOrBrace != "{")
+            {
+                name = nameOrBrace;
+
+                if (GetNextToken() != "{")
+                    ThrowException("Opening brace expected.");
+            }
+        }
+
+        protected void ReadHeadOfDataObject()
+        {
+            string nameOrBrace = GetNextToken();
+            if (nameOrBrace != "{")
+            {
+                if (GetNextToken() != "{")
+                    ThrowException("Opening brace expected.");
+            }
+        }
+
+        //检查右大括号，如果没有，抛出异常
+        protected void CheckForClosingBrace()
+        {
+            if (GetNextToken() != "}")
+                ThrowException("Closing brace expected.");
+        }
+
+        //检查分号，如果没有，抛出异常
+        protected void CheckForSemicolon()
+        {
+            if (isBinaryFormat)
+                return;
+
+            if (GetNextToken() != ";")
+                ThrowException("Semicolon expected.");
+        }
+
+        //检查分隔符char，包括',' 和 a ';'
+        protected void CheckForSeparator()
+        {
+            if (isBinaryFormat)
+                return;
+
+            string token = GetNextToken();
+            if (token != "," && token != ";")
+                ThrowException("Separator character (';' or ',') expected.");
+        }
+
+        //测试并可能使用的分隔符字符，但如果没有分隔符，则不执行任何操作
+        protected void TestForSeparator()
+        {
+            if (isBinaryFormat)
+                return;
+
+            FindNextNoneWhiteSpace();
+            if (p >= end)
+                return;
+
+            // test and skip
+            if (buffer[p] == ';' || buffer[p] == ',')
+                p++;
+        }
+
+        //读取x文件字符串
+        protected void GetNextTokenAsString(out string poString)
+        {
+            if (isBinaryFormat)
+            {
+                poString = GetNextToken();
+                return;
+            }
+
+            FindNextNoneWhiteSpace();
+            if (p >= end)
+                ThrowException("Unexpected end of file while parsing string");
+
+            if (buffer[p] != '"')
+                ThrowException("Expected quotation mark.");
+            ++p;
+            int startPos = p;
+
+            while (p < end && buffer[p] != '"')
+                p++;
+            poString = Encoding.Default.GetString(buffer, startPos, p - startPos);
+
+            if (p >= end - 1)
+                ThrowException("Unexpected end of file while parsing string");
+
+            if (buffer[p + 1] != ';' || buffer[p] != '"')
+                ThrowException("Expected quotation mark and semicolon at the end of a string.");
+            p += 2;
+        }
+
+        protected void ReadUntilEndOfLine()
+        {
+            if (isBinaryFormat)
+                return;
+
+            while (p < end)
+            {
+                if (buffer[p] == '\n' || buffer[p] == '\r')
+                {
+                    ++p;
+                    lineNumber++;
+                    return;
+                }
+                ++p;
+            }
+        }
+
+        protected ushort ReadBinWord()
+        {
+            Debug.Assert(end - p >= 2);
+            ushort tmp = BitConverter.ToUInt16(buffer, p);
+            p += 2;
+            return tmp;
+        }
+
+        protected uint ReadBinDWord()
+        {
+            Debug.Assert(end - p >= 4);
+            uint tmp = BitConverter.ToUInt32(buffer, p);
+            p += 4;
+            return tmp;
+        }
+
+        protected uint ReadInt()
+        {
+            if (isBinaryFormat)
+            {
+                if (binaryNumCount == 0 && end - p >= 2)
+                {
+                    ushort tmp = ReadBinWord(); // 0x06 or 0x03
+                    if (tmp == 0x06 && end - p >= 4) // array of ints follows
+                        binaryNumCount = ReadBinDWord();
+                    else // single int follows
+                        binaryNumCount = 1;
+                }
+
+                --binaryNumCount;
+                if (end - p >= 4)
+                {
+                    return ReadBinDWord();
+                }
+                else
+                {
+                    p = end;
+                    return 0;
+                }
+            }
+            else
+            {
+                FindNextNoneWhiteSpace();
+
+                // TODO: consider using strtol10 instead???
+
+                // check preceeding minus sign
+                bool isNegative = false;
+                if (buffer[p] == '-')
+                {
+                    isNegative = true;
+                    p++;
+                }
+
+                // at least one digit expected
+                if (!char.IsDigit((char)buffer[p]))
+                    ThrowException("Number expected.");
+
+                // read digits
+                uint number = 0;
+                while (p < end)
+                {
+                    if (!char.IsDigit((char)buffer[p]))
+                        break;
+                    number = number * 10 + ((uint)buffer[p] - 48);
+                    p++;
+                }
+
+                CheckForSeparator();
+                return isNegative ? (uint)(-1 * (int)number) : number;
+            }
+
+        }
+
+        protected float ReadFloat()
+        {
+            if (isBinaryFormat)
+            {
+                if (binaryNumCount == 0 && end - p >= 2)
+                {
+                    ushort tmp = ReadBinWord();
+                    if (tmp == 0x07 && end - p >= 4)
+                    {
+                        binaryNumCount = ReadBinDWord();
+                    }
+                    else
+                    {
+                        binaryNumCount = 1;
+                    }
+                }
+
+                --binaryNumCount;
+                if (binaryFloatSize == 8)
+                {
+                    if (end - p >= 8)
+                    {
+                        float result = (float)BitConverter.ToDouble(buffer, p);
+                        p += 8;
+                        return result;
+                    }
+                    else
+                    {
+                        p = end;
+                        return 0;
+                    }
+                }
+                else
+                {
+                    if (end - p >= 4)
+                    {
+                        float result = BitConverter.ToSingle(buffer, p);
+                        p += 4;
+                        return result;
+                    }
+                    else
+                    {
+                        p = end;
+                        return 0;
+                    }
+                }
+            }
+
+            // text version
+            FindNextNoneWhiteSpace();
+            // check for various special strings to allow reading files from faulty exporters
+            // I mean you, Blender!
+            // Reading is safe because of the terminating zero
+            if (Encoding.Default.GetString(buffer, p, 9) == "-1.#IND00" || Encoding.Default.GetString(buffer, p, 8) == "1.#IND00")
+            {
+                p += 9;
+                CheckForSeparator();
+                return 0.0f;
+            }
+            else if (Encoding.Default.GetString(buffer, p, 8) == "1.#QNAN0")
+            {
+                p += 8;
+                CheckForSeparator();
+                return 0.0f;
+            }
+
+            float result_ = 0.0f;
+
+            string tmp_ = string.Empty;
+            while (p < end)
+            {
+                byte c = buffer[p];
+                if (char.IsDigit((char)c) || c == '+' || c == '.' || c == '-' || c == 'e' || c == 'E')
+                {
+                    tmp_ += (char)c;
+                    p++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            float.TryParse(tmp_, out result_);
+
+            CheckForSeparator();
+
+            return result_;
+        }
+
+        protected Vector2 ReadVector2()
+        {
+            Vector2 vector;
+            vector.X = ReadFloat();
+            vector.Y = ReadFloat();
+            TestForSeparator();
+
+            return vector;
+        }
+
+        protected Vector3 ReadVector3()
+        {
+            Vector3 vector;
+            vector.X = ReadFloat();
+            vector.Y = ReadFloat();
+            vector.Z = ReadFloat();
+            TestForSeparator();
+
+            return vector;
+        }
+
+        protected Color3 ReadRGB()
+        {
+            Color3 color = new Color3();
+            color.Red = ReadFloat();
+            color.Green = ReadFloat();
+            color.Blue = ReadFloat();
+            TestForSeparator();
+
+            return color;
+        }
+
+        protected Color4 ReadRGBA()
+        {
+            Color4 color;
+            color.Red = ReadFloat();
+            color.Green = ReadFloat();
+            color.Blue = ReadFloat();
+            color.Alpha = ReadFloat();
+            TestForSeparator();
+
+            return color;
+        }
+
+        //抛出带有行号和给定文本的异常
+        protected void ThrowException(string text)
+        {
+            if (isBinaryFormat)
+                throw (new Exception(text));
+            else
+                throw (new Exception(string.Format("Line {0}: {1}", lineNumber, text)));
+        }
+
+        protected void FilterHierarchy(Node node)
+        {
+            // if the node has just a single unnamed child containing a mesh, remove
+            // the anonymous node inbetween. The 3DSMax kwXport plugin seems to produce this
+            // mess in some cases
+            if (node.Children.Count == 1 && node.Meshes.Count == 0)
+            {
+                Node child = node.Children[0];
+                if (child.Name.Length == 0 && (child.Meshes.Count > 0))
+                {
+                    // transfer its meshes to us
+                    for (uint a = 0; a < child.Meshes.Count; a++)
+                        node.Meshes.Add(child.Meshes[(int)a]);
+                    child.Meshes.Clear();
+
+                    // transfer the transform as well
+                    node.TrafoMatrix = node.TrafoMatrix * child.TrafoMatrix;
+                    // then kill it
+                    node.Children.Clear();
+                }
+            }
+
+            // recurse
+            for (uint a = 0; a < node.Children.Count; a++)
+                FilterHierarchy(node.Children[(int)a]);
         }
     }
 }

@@ -103,7 +103,7 @@ namespace WhiteRabbit.Framework
 
         public List<uint> FaceMaterials;
 
-        public List<Material> Materials;
+        public List<MatEntry> Materials;
 
         public List<Bone> Bones;
 
@@ -119,7 +119,7 @@ namespace WhiteRabbit.Framework
             TexCoords = new List<Vector2>[AI_MAX_NUMBER_OF_TEXTURECOORDS];
             Colors = new List<Color4>[AI_MAX_NUMBER_OF_COLOR_SETS];
             FaceMaterials = new List<uint>();
-            Materials = new List<Material>();
+            Materials = new List<MatEntry>();
             Bones = new List<Bone>();
             NumTextures = 0;
             NumColorSets = 0;
@@ -170,7 +170,7 @@ namespace WhiteRabbit.Framework
 
             public List<Mesh> GlobalMeshes = new List<Mesh>();
 
-            public List<Material> GlobalMaterial = new List<Material>();
+            public List<MatEntry> GlobalMaterial = new List<MatEntry>();
 
             public List<Animation> Anims = new List<Animation>();
 
