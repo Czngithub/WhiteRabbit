@@ -20,9 +20,9 @@ namespace WhiteRabbit.Framework
     //他提供了对存于顶点缓冲区和索引缓冲区中的单个几何体进行绘制所需的数据和偏移量
     public class SubmeshGeometry
     {
-        public int IndexCount { get; set; }
-        public int StartIndexLocation { get; set; }
-        public int BaseVertexLocation { get; set; }
+        public int IndexCount { get; set; } //每个实例要绘制的索引数量
+        public int StartIndexLocation { get; set; } //指向索引缓冲区中的某个元素，将其标记为预读取的起始索引
+        public int BaseVertexLocation { get; set; } //基准顶点地址，在本次绘制调用读取顶点之前，要为每个索引都加上此整数值
 
         //通过此子网格来定义当前SubmeshGeometry结构体中所存几何体的包围盒（bounding box）
         public BoundingBox Bounds { get; set; }
@@ -132,7 +132,7 @@ namespace WhiteRabbit.Framework
             else if (typeof(TIndex) == typeof(short))
                 format = Format.R16_UInt;
 
-            Debug.Assert(format != Format.Unknown);
+            //Debug.Assert(format != Format.Unknown);
 
             return format;
         }

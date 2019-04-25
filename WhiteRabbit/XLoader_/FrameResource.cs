@@ -4,7 +4,7 @@ using SharpDX;
 using SharpDX.Direct3D12;
 using WhiteRabbit.Framework;
 
-namespace WhiteRabbit.XLoader
+namespace WhiteRabbit.XLoader_
 {
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     internal struct ObjectConstants
@@ -63,6 +63,15 @@ namespace WhiteRabbit.XLoader
         public Vector4 Pos;
         public Vector4 Normal;
         public Vector2 TexC;
+    }
+
+    struct Submesh
+    {
+        public Color4 Diffuse;
+        public float SpecularExponent;
+        public Color3 Specular;
+        public Color3 Emissive;
+        public Texture Texture;
     }
 
     internal class FrameResource : IDisposable

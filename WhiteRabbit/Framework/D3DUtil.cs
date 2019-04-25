@@ -150,6 +150,38 @@ namespace WhiteRabbit.Framework
         public Matrix MatTransform { get; set; } = Matrix.Identity;
     }
 
+    //XLoader_使用的Material类，这里的结构较为简单，一个3D引擎可能会创建多个材质的类层次结构
+    public class XMaterial
+    {
+        //用于查找的唯一材料名称
+        public string Name { get; set; }
+
+        //索引到与此材料对应的常数缓冲区中
+        public int MatCBIndex { get; set; } = -1;
+
+        //索引到SRV堆中的漫反射纹理
+        public int DiffuseSrvHeapIndex { get; set; } = -1;
+
+        //索引到SRV堆中以获得正常纹理
+        public int NormalSrvHeapIndex { get; set; } = -1;
+
+        //更新帧资源
+        public int NumFramesDirty { get; set; } = D3DApp.NumFrameResources;
+
+        //材质常数缓冲数据，用于着色
+        public Vector4 DiffuseAlbedo { get; set; } = Vector4.One;
+        public Vector3 FresnelR0 { get; set; } = new Vector3(0.01f);
+        public float Roughness { get; set; } = 0.25f;
+        public Matrix MatTransform { get; set; } = Matrix.Identity;
+
+        //该材质增加的属性，用于着色
+        public Color4 Diffuse;
+        public float SpecularExponent;
+        public Color3 Specular;
+        public Color3 Emissive;
+    }
+
+
     public class Texture : IDisposable
     {
         //用于查找的唯一材料名称

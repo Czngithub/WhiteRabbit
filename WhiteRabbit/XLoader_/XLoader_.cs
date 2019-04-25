@@ -8,14 +8,15 @@ using SharpDX.Direct3D;
 using SharpDX.Direct3D12;
 using SharpDX.DXGI;
 using WhiteRabbit.Framework;
-using static WhiteRabbit.XLoader.RenderItem;
+using static WhiteRabbit.XLoader_.RenderItem;
 using Resource = SharpDX.Direct3D12.Resource;
 using ShaderResourceViewDimension = SharpDX.Direct3D12.ShaderResourceViewDimension;
 
 
-namespace WhiteRabbit.XLoader
+
+namespace WhiteRabbit.XLoader_
 {
-    public class XLoader : D3DApp
+    public class XLoader_ : D3DApp
     {
         private readonly List<FrameResource> frameResources = new List<FrameResource>(NumFrameResources);
         private readonly List<AutoResetEvent> fenceEvents = new List<AutoResetEvent>(NumFrameResources);
@@ -48,10 +49,10 @@ namespace WhiteRabbit.XLoader
         private Matrix proj = Matrix.Identity;
         private Matrix view = Matrix.Identity;
 
-        private readonly float angleY;
+        private readonly float angleY = 0.01f;
 
-        public Vector3 CamPostion;
-        public Vector3 CamTarget;
+        public Vector3 CamPostion = new Vector3(0, 0, -5);
+        public Vector3 CamTarget = new Vector3(0, 0, 0);
 
         private Point lastMousePos;
 
@@ -59,14 +60,15 @@ namespace WhiteRabbit.XLoader
         private bool isMoveByMouse = false;
 
         Mesh mesh;
+        Submesh[] submeshes;
 
-        private string filename;
+        private string filename = @"C:\Users\yulanli\Desktop\我的文件\SharpXFileParser-master\ゲキド街v3.0\ゲキド街v3.0.x";
         private string dirpath;
         int triangleCount;
 
-        public XLoader()
+        public XLoader_()
         {
-            MainWindowCaption = "XLoader";
+            MainWindowCaption = "XLoader_";
         }
 
         private FrameResource CurrFrameResource => frameResources[currFrameResourceIndex];
@@ -81,10 +83,10 @@ namespace WhiteRabbit.XLoader
 
             LoadMesh(filename);
             BuildRootSignature();
-            BuildDescriptorHeaps();
             BuildShadersAndInputLayout();
             BuildShapeGeometry();
             BuildMaterials();
+            BuildDescriptorHeaps();
             BuildRenderItems();
             BuildFrameResources();
             BuildPSOs();
@@ -178,6 +180,152 @@ namespace WhiteRabbit.XLoader
             CommandQueue.Signal(Fence, CurrentFence);
         }
 
+        protected override void OnKeyDown(Keys keyCode)
+        {
+            Vector4 tempV4;
+            Matrix currentView = mainPassCB.View;
+            switch (keyCode)
+            {
+                case Keys.Left:
+                    CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+                    tempV4 = Vector3.Transform(CamPostion, Matrix.RotationQuaternion(
+                            Quaternion.RotationAxis(new Vector3(currentView.M12, currentView.M22, currentView.M32), -angleY)));
+                    CamPostion.X = tempV4.X + CamTarget.X;
+                    CamPostion.Y = tempV4.Y + CamTarget.Y;
+                    CamPostion.Z = tempV4.Z + CamTarget.Z;
+                    break;
+                case Keys.Right:
+                    CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+                    tempV4 = Vector3.Transform(CamPostion, Matrix.RotationQuaternion(
+                            Quaternion.RotationAxis(new Vector3(currentView.M12, currentView.M22, currentView.M32), angleY)));
+                    CamPostion.X = tempV4.X + CamTarget.X;
+                    CamPostion.Y = tempV4.Y + CamTarget.Y;
+                    CamPostion.Z = tempV4.Z + CamTarget.Z;
+                    break;
+                case Keys.Up:
+                    CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+                    tempV4 = Vector3.Transform(CamPostion, Matrix.RotationQuaternion(
+                       Quaternion.RotationAxis(new Vector3(mainPassCB.View.M11
+                       , mainPassCB.View.M21, mainPassCB.View.M31), -angleY)));
+                    CamPostion.X = tempV4.X + CamTarget.X;
+                    CamPostion.Y = tempV4.Y + CamTarget.Y;
+                    CamPostion.Z = tempV4.Z + CamTarget.Z;
+                    break;
+                case Keys.Down:
+                    CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+                    tempV4 = Vector3.Transform(CamPostion, Matrix.RotationQuaternion(
+                       Quaternion.RotationAxis(new Vector3(mainPassCB.View.M11
+                       , mainPassCB.View.M21, mainPassCB.View.M31), angleY)));
+                    CamPostion.X = tempV4.X + CamTarget.X;
+                    CamPostion.Y = tempV4.Y + CamTarget.Y;
+                    CamPostion.Z = tempV4.Z + CamTarget.Z;
+                    break;
+                case Keys.Add:
+                    CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+
+                    CamPostion.X = CamPostion.X * 0.95f;
+                    CamPostion.Y = CamPostion.Y * 0.95f;
+                    CamPostion.Z = CamPostion.Z * 0.95f;
+                    CamPostion = Vector3.Add(CamPostion, CamTarget);
+                    break;
+                case Keys.Subtract:
+                    CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+                    CamPostion.X = CamPostion.X * 1.05f;
+                    CamPostion.Y = CamPostion.Y * 1.05f;
+                    CamPostion.Z = CamPostion.Z * 1.05f;
+                    CamPostion = Vector3.Add(CamPostion, CamTarget);
+                    break;
+            }
+
+            eyePos = CamPostion;
+
+            Matrix viewMatrix = Matrix.LookAtLH(eyePos, CamTarget, Vector3.Up);
+            mainPassCB.View = viewMatrix;
+        }
+
+        protected override void OnMouseDown(MouseButtons button, Point location)
+        {
+            if (button == MouseButtons.Left)
+            {
+                lastMousePos = location;
+                isRotateByMouse = true;
+            }
+            else if (button == MouseButtons.Middle)
+            {
+                lastMousePos = location;
+                isMoveByMouse = true;
+            }
+        }
+
+        protected override void OnMouseUp(MouseButtons button, Point location)
+        {
+            isRotateByMouse = false;
+            isMoveByMouse = false;
+        }
+
+        protected override void OnMouseMove(MouseButtons button, Point location)
+        {
+            if (isRotateByMouse)
+            {
+                Matrix currentView = mainPassCB.View;
+                float tempAngleY = 2 * (float)(location.X - lastMousePos.X) / this.ClientWidth;
+                CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+                Vector4 tempV4 = Vector3.Transform(CamPostion, Matrix.RotationQuaternion(
+                    Quaternion.RotationAxis(new Vector3(currentView.M12, currentView.M22, currentView.M32), tempAngleY)));
+                CamPostion.X = tempV4.X;
+                CamPostion.Y = tempV4.Y;
+                CamPostion.Z = tempV4.Z;
+
+                float tempAngleX = 4 * (float)(location.Y - lastMousePos.Y) / this.ClientHeight;
+                tempV4 = Vector3.Transform(CamPostion, Matrix.RotationQuaternion(
+                    Quaternion.RotationAxis(new Vector3(currentView.M11, currentView.M21, currentView.M31), tempAngleX)));
+                CamPostion.X = tempV4.X + CamTarget.X;
+                CamPostion.Y = tempV4.Y + CamTarget.Y;
+                CamPostion.Z = tempV4.Z + CamTarget.Z;
+
+                eyePos = CamPostion;
+
+                Matrix viewMatrix = Matrix.LookAtLH(eyePos, CamTarget, Vector3.Up);
+                mainPassCB.View = viewMatrix;
+            }
+            else if (isMoveByMouse)
+            {
+                Matrix currentView = mainPassCB.View;
+                float moveFactor = 0.01f;
+                CamPostion.X += -moveFactor * ((location.X - lastMousePos.X) * currentView.M11 - (location.Y - lastMousePos.Y) * currentView.M12);
+                CamPostion.Y += -moveFactor * ((location.X - lastMousePos.X) * currentView.M21 - (location.Y - lastMousePos.Y) * currentView.M22);
+                CamPostion.Z += -moveFactor * ((location.X - lastMousePos.X) * currentView.M31 - (location.Y - lastMousePos.Y) * currentView.M32);
+
+                CamPostion.X += -moveFactor * ((location.X - lastMousePos.X) * currentView.M11 - (location.Y - lastMousePos.Y) * currentView.M12);
+                CamPostion.Y += -moveFactor * ((location.X - lastMousePos.X) * currentView.M21 - (location.Y - lastMousePos.Y) * currentView.M22);
+                CamPostion.Z += -moveFactor * ((location.X - lastMousePos.X) * currentView.M31 - (location.Y - lastMousePos.Y) * currentView.M32);
+
+                eyePos = CamPostion;
+
+                Matrix viewMatrix = Matrix.LookAtLH(eyePos, CamTarget, Vector3.Up);
+                mainPassCB.View = viewMatrix;
+            }
+
+            lastMousePos = location;
+        }
+
+        protected override void OnMouseWheel(MouseButtons button, Point wheel)
+        {
+            //这里的wheel.X并不是滚轮的X坐标，而是指鼠标滚轮的delta值
+            float scaleFactor = -(float)wheel.X / 2000 + 1f;
+
+            CamPostion = Vector3.Subtract(CamPostion, CamTarget);
+            CamPostion.X = CamPostion.X * scaleFactor;
+            CamPostion.Y = CamPostion.Y * scaleFactor;
+            CamPostion.Z = CamPostion.Z * scaleFactor;
+            CamPostion = Vector3.Add(CamPostion, CamTarget);
+
+            eyePos = CamPostion;
+
+            Matrix viewMatrix = Matrix.LookAtLH(eyePos, CamTarget, Vector3.Up);
+            mainPassCB.View = viewMatrix;
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -194,6 +342,10 @@ namespace WhiteRabbit.XLoader
 
         private void UpdateCamera()
         {
+            eyePos = CamPostion;
+
+            //建立观察矩阵
+            view = Matrix.LookAtLH(new Vector3(0, 0, -5), new Vector3(0, 0, 0), Vector3.UnitY);
         }
 
         private void UpdateObjectCBs()
@@ -277,7 +429,7 @@ namespace WhiteRabbit.XLoader
         {
             byte[] buffer;
             filename = Path.GetFullPath(filename);
-            dirpath = Path.GetDirectoryName(filename);           
+            dirpath = Path.GetDirectoryName(filename);
 
             using (BinaryReader br = new BinaryReader(File.OpenRead(filename)))
             {
@@ -321,7 +473,9 @@ namespace WhiteRabbit.XLoader
             //根签名是根参数的数组
             var rootSigDesc = new RootSignatureDescription(
                 RootSignatureFlags.AllowInputAssemblerInputLayout,
-                slotRootParameters);
+                slotRootParameters,
+                GetStaticSamplers()
+                );
 
             rootSignature = Device.CreateRootSignature(rootSigDesc.Serialize());
         }
@@ -361,13 +515,13 @@ namespace WhiteRabbit.XLoader
 
         private void BuildShadersAndInputLayout()
         {
-            shaders["standardVS"] = D3DUtil.CompileShader(@"C:\Users\yulanli\Desktop\WhiteRabbit-master\WhiteRabbit\TerrainForm\Shaders\Default.hlsl", "VS", "vs_5_0");
-            shaders["opaquePS"] = D3DUtil.CompileShader(@"C:\Users\yulanli\Desktop\WhiteRabbit-master\WhiteRabbit\TerrainForm\Shaders\Default.hlsl", "PS", "ps_5_0");
+            shaders["standardVS"] = D3DUtil.CompileShader(@"C:\Users\yulanli\Desktop\WhiteRabbit-master\WhiteRabbit\XLoader_\Shaders\Default.hlsl", "VS", "vs_5_0");
+            shaders["opaquePS"] = D3DUtil.CompileShader(@"C:\Users\yulanli\Desktop\WhiteRabbit-master\WhiteRabbit\XLoader_\Shaders\Default.hlsl", "PS", "ps_5_0");
 
             inputLayout = new InputLayoutDescription(new[]
             {
                 new InputElement("POSITION", 0, Format.R32G32B32A32_Float, 0, 0),
-                new InputElement("NORMAL", 0, Format.R32G32B32A32_Float, 16, 0),
+                new InputElement("COLOR", 0, Format.R32G32B32A32_Float, 16, 0),
                 new InputElement("TEXCOORD", 0, Format.R32G32_Float, 32, 0)
             });
         }
@@ -378,6 +532,7 @@ namespace WhiteRabbit.XLoader
             List<uint> materialIndices = new List<uint>();
             triangleCount = 0;
 
+            // vertices
             for (int i = 0; i < mesh.PosFaces.Count; i++)
             {
                 if (mesh.PosFaces[i].Indices.Count == 3)
@@ -431,6 +586,7 @@ namespace WhiteRabbit.XLoader
                 }
             }
 
+            // indices
             List<uint>[] indicesPerMaterial = new List<uint>[mesh.Materials.Count];
 
             for (int i = 0; i < indicesPerMaterial.Length; i++)
@@ -443,21 +599,36 @@ namespace WhiteRabbit.XLoader
                 indicesPerMaterial[(int)materialIndices[(int)i]].Add(i);
             }
 
-            SubmeshGeometry[] geoSubmesh = null;
-            
+            int[] indexCounts = new int[indicesPerMaterial.Length];
+            uint[] indices = new uint[materialIndices.Count * 3];
+            int allCounts = 0;
+            int indexBufferSourceIndex = 0;
+
             for (int i = 0; i < indicesPerMaterial.Length; i++)
             {
-                geoSubmesh[i] = new SubmeshGeometry
+                for (int j = 0; j < indicesPerMaterial[i].Count; j++)
                 {
-                    //待修改
-                    IndexCount = (int)indicesPerMaterial[i].Count,
-                    StartIndexLocation = indicesPerMaterial[i].Count,
-                    BaseVertexLocation = vertices.Count
-                };
+                    indices[indexBufferSourceIndex * 3 + 0] = indicesPerMaterial[i][j] * 3 + 0;
+                    indices[indexBufferSourceIndex * 3 + 1] = indicesPerMaterial[i][j] * 3 + 1;
+                    indices[indexBufferSourceIndex * 3 + 2] = indicesPerMaterial[i][j] * 3 + 2;
+                    indexBufferSourceIndex++;
+                }
+                indexCounts[i] = (int)indicesPerMaterial[i].Count;
+                allCounts += indexCounts[i];
             }
 
-            var geo = MeshGeometry.New(Device, CommandList, vertices, materialIndices, "XLoader");
+            var geoSubmesh = new SubmeshGeometry
+            {
+                IndexCount = allCounts,
+                StartIndexLocation = 0,
+                BaseVertexLocation = 0
+            };
 
+            var geo = MeshGeometry.New(Device, CommandList, vertices, indices, "XLoader_");
+
+            geo.DrawArgs["XLoader_"] = geoSubmesh;
+
+            geometries[geo.Name] = geo;
         }
 
         private void BuildPSOs()
@@ -493,23 +664,71 @@ namespace WhiteRabbit.XLoader
         }
         private void BuildMaterials()
         {
-            AddMaterial(new Material
+            submeshes = new Submesh[mesh.Materials.Count];
+            for (int i = 0; i < mesh.Materials.Count; i++)
             {
-                Name = "CrateMat",
-                MatCBIndex = 0,
-                DiffuseSrvHeapIndex = 0,
-                DiffuseAlbedo = Color.White.ToVector4(),
-                FresnelR0 = Color.LightGray.ToVector3(),
-                Roughness = 0.85f
-            });
+                Submesh submesh = new Submesh()
+                {
+                    Diffuse = mesh.Materials[i].Diffuse,
+                    SpecularExponent = mesh.Materials[i].SpecularExponent,
+                    Specular = mesh.Materials[i].Specular,
+                    Emissive = mesh.Materials[i].Emissive
+                };
+
+                AddMaterial(new Material
+                {
+                    Name = "CrateMat",
+                    MatCBIndex = 0,
+                    DiffuseSrvHeapIndex = 0,
+                    DiffuseAlbedo = Color.White.ToVector4(),
+                    FresnelR0 = Color.LightGray.ToVector3(),
+                    Roughness = 0.85f
+                });
+
+                // Tex
+                if (mesh.Materials[i].Textures.Count > 0)
+                {
+                    if (!String.IsNullOrWhiteSpace(mesh.Materials[i].Textures[0].Name))
+                    {
+                        string comPath = Path.Combine(dirpath, mesh.Materials[i].Textures[0].Name);
+                        if (File.Exists(comPath))
+                        {
+                            Texture CrateTex;
+                            if (comPath.EndsWith(".tga"))
+                            {
+                                CrateTex = new Texture
+                                {
+                                    Name = "CrateTex",
+                                    Filename = comPath
+                                };
+                                CrateTex.Resource = XTexUtilities.LoadFromTgaFile(Device, comPath);
+                            }
+                            else
+                            {
+                                CrateTex = new Texture
+                                {
+                                    Name = "CrateTex",
+                                    Filename = comPath
+                                };
+                                CrateTex.Resource = XTexUtilities.LoadFromWicFile(Device, comPath);
+                            }
+
+                            textures[CrateTex.Name] = CrateTex;
+
+                            submesh.Texture = CrateTex;
+                        }
+                    }
+                }
+                submeshes[i] = submesh;
+            }
         }
 
         private void AddMaterial(Material mat) => materials[mat.Name] = mat;
 
         private void BuildRenderItems()
         {
-            MeshGeometry geo = geometries["TerrainForm"];
-            SubmeshGeometry submesh = geo.DrawArgs["TerrainForm"];
+            MeshGeometry geo = geometries["XLoader_"];
+            SubmeshGeometry submesh = geo.DrawArgs["XLoader_"];
             var renderItem = new RenderItem
             {
                 ObjCBIndex = 0,
@@ -559,5 +778,63 @@ namespace WhiteRabbit.XLoader
             1.0f,
             -0.3f * MathHelper.Sinf(0.1f * x) + 0.03f * x * MathHelper.Sinf(0.1f * z)));
 
+        // Create Sampler
+        private static StaticSamplerDescription[] GetStaticSamplers() => new[]
+        {
+            // PointWrap
+            new StaticSamplerDescription(ShaderVisibility.All, 0, 0)
+            {
+                Filter = Filter.MinMagMipPoint,
+                AddressUVW = TextureAddressMode.Wrap
+            },
+            // PointClamp
+            new StaticSamplerDescription(ShaderVisibility.All, 1, 0)
+            {
+                Filter = Filter.MinMagMipPoint,
+                AddressUVW = TextureAddressMode.Clamp
+            },
+            // LinearWrap
+            new StaticSamplerDescription(ShaderVisibility.All, 2, 0)
+            {
+                Filter = Filter.MinMagMipLinear,
+                AddressUVW = TextureAddressMode.Wrap
+            },
+            // LinearClamp
+            new StaticSamplerDescription(ShaderVisibility.All, 3, 0)
+            {
+                Filter = Filter.MinMagMipLinear,
+                AddressUVW = TextureAddressMode.Clamp
+            },
+            // AnisotropicWrap
+            new StaticSamplerDescription(ShaderVisibility.All, 4, 0)
+            {
+                Filter = Filter.Anisotropic,
+                AddressUVW = TextureAddressMode.Wrap,
+                MipLODBias = 0.0f,
+                MaxAnisotropy = 8
+            },
+            // AnisotropicClamp
+            new StaticSamplerDescription(ShaderVisibility.All, 5, 0)
+            {
+                Filter = Filter.Anisotropic,
+                AddressUVW = TextureAddressMode.Clamp,
+                MipLODBias = 0.0f,
+                MaxAnisotropy = 8
+            },
+
+            new StaticSamplerDescription(ShaderVisibility.All, 6, 0)
+            {
+                Filter = Filter.MinMagMipLinear,
+                AddressU = TextureAddressMode.Wrap,
+                AddressV = TextureAddressMode.Wrap,
+                AddressW = TextureAddressMode.Wrap,
+                BorderColor = StaticBorderColor.OpaqueBlack, // 表示黑色，alpha分量为完全不透明
+                ComparisonFunc = Comparison.Never,
+                MaxAnisotropy = 16,
+                MipLODBias = 0,
+                MinLOD = 0,
+                MaxLOD = 16
+            }
+        };
     }
 }

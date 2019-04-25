@@ -2,7 +2,7 @@
 using SharpDX.Direct3D;
 using WhiteRabbit.Framework;
 
-namespace WhiteRabbit.XLoader
+namespace WhiteRabbit.XLoader_
 {
     internal class RenderItem
     {
@@ -20,6 +20,7 @@ namespace WhiteRabbit.XLoader
         public int ObjCBIndex { get; set; } = -1;
 
         public Material Mat { get; set; }
+        public XMaterial XMat { get; set; }
         public MeshGeometry Geo { get; set; }
 
         //拓扑

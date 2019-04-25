@@ -35,7 +35,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupObject>WhiteRabbit.TempForm.Program</StartupObject>
+    <StartupObject>WhiteRabbit.XLoader_.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="SharpDX, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
@@ -78,7 +78,24 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Framework\Assimp\Animation.cs" />
+    <Compile Include="Framework\Assimp\BaseImporter.cs" />
+    <Compile Include="Framework\Assimp\Camera.cs" />
+    <Compile Include="Framework\Assimp\DeadlyImportError.cs" />
+    <Compile Include="Framework\Assimp\FlipWindingOrderProcess.cs" />
+    <Compile Include="Framework\Assimp\ImporterDesc.cs" />
+    <Compile Include="Framework\Assimp\IOSystem.cs" />
+    <Compile Include="Framework\Assimp\MakeLeftHandedProcess.cs" />
+    <Compile Include="Framework\Assimp\Matadata.cs" />
+    <Compile Include="Framework\Assimp\Material.cs" />
+    <Compile Include="Framework\Assimp\Mesh.cs" />
+    <Compile Include="Framework\Assimp\Node.cs" />
+    <Compile Include="Framework\Assimp\Scene.cs" />
+    <Compile Include="Framework\Assimp\TextureSlot.cs" />
+    <Compile Include="Framework\Assimp\TextureSlotCollection.cs" />
+    <Compile Include="Framework\TargeImage.cs" />
     <Compile Include="Framework\XHelper.cs" />
+    <Compile Include="Framework\XTexUtilities.cs" />
     <Compile Include="Framework\XUtilities.cs" />
     <Compile Include="Framework\TextureUtilities.cs" />
     <Compile Include="Framework\UploadBuffer.cs" />
@@ -86,9 +103,7 @@
     <Compile Include="Shapes\Program.cs" />
     <Compile Include="Shapes\RenderItem.cs" />
     <Compile Include="Shapes\Shapes.cs" />
-    <Compile Include="XLoader\FrameResource.cs" />
     <Compile Include="TempForm\Program.cs" />
-    <Compile Include="XLoader\RenderItem.cs" />
     <Compile Include="TempForm\TempForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -99,7 +114,13 @@
     <Compile Include="TerrainForm\Program.cs" />
     <Compile Include="TerrainForm\RenderItem.cs" />
     <Compile Include="TerrainForm\TerrainForm.cs" />
-    <Compile Include="XLoader\XLoader.cs" />
+    <Compile Include="XLoader\XFileHelper.cs" />
+    <Compile Include="XLoader\XFileImporter.cs" />
+    <Compile Include="XLoader\XFileParser.cs" />
+    <Compile Include="XLoader_\FrameResource.cs" />
+    <Compile Include="XLoader_\Program.cs" />
+    <Compile Include="XLoader_\RenderItem.cs" />
+    <Compile Include="XLoader_\XLoader_.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -151,6 +172,7 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="XLoader_\Shaders\Default.hlsl" />
     <Resource Include="TerrainForm\Textures\heightMap.BMP" />
     <Resource Include="TerrainForm\Shaders\LightingUtil.txt" />
     <EmbeddedResource Include="Shapes\Shaders\color.hlsl">
